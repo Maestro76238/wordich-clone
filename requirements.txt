@@ -1,5 +1,5 @@
 python-telegram-bot==20.7
-sqlalchemy==2.0.23
+sqlalchemy==1.4.52  # Измени с 2.0.23 на 1.4.52
 psycopg2-binary==2.9.9
 python-dotenv==1.0.0
 aiofiles==23.2.1
@@ -10,5 +10,3 @@ gTTS==2.3.2
 pydub==0.25.1
 ffmpeg-python==0.2.0
 aiohttp==3.9.1
-# Заменяем asyncpg на чистый SQLAlchemy
-# asyncpg не нужен, убираем его
