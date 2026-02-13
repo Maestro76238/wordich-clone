@@ -1,9 +1,9 @@
 import logging
 import os
-import asyncio
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
-from aiohttp import web
-from threading import Thread
+from flask import Flask
+import threading
+
 from config import Config
 from handlers import *
 
@@ -12,38 +12,26 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# Простой веб-сервер для Render
-async def handle(request):
-    return web.Response(text="Bot is running!")
+# Создаем простое Flask приложение для health check
+app = Flask(__name__)
 
-async def run_web_server():
-    app = web.Application()
-    app.router.add_get('/', handle)
-    app.router.add_get('/health', handle)
-    
+@app.route('/')
+@app.route('/health')
+def health():
+    return "Bot is running!"
+
+def run_flask():
     port = int(os.environ.get('PORT', 8080))
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-    logging.info(f"Web server started on port {port}")
-    
-    # Держим сервер запущенным
-    await asyncio.Event().wait()
-
-def start_web_server():
-    """Запуск веб-сервера в отдельном потоке"""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(run_web_server())
+    app.run(host='0.0.0.0', port=port)
 
 def main():
-    # Запускаем веб-сервер в отдельном потоке
-    web_thread = Thread(target=start_web_server, daemon=True)
-    web_thread.start()
+    # Запускаем Flask в отдельном потоке
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+    logging.info(f"Flask server started on port {os.environ.get('PORT', 8080)}")
     
-    # ✅ УБИРАЕМ use_context - он больше не нужен
-    updater = Updater(Config.BOT_TOKEN)
+    # ✅ Правильный способ создания Updater
+    updater = Updater(token=Config.BOT_TOKEN, use_context=False)
     dp = updater.dispatcher
 
     # Добавляем все обработчики команд
