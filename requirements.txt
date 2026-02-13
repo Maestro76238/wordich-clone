@@ -6,3 +6,4 @@ gTTS==2.3.2
 pydub==0.25.1
 ffmpeg-python==0.2.0
 aiohttp==3.9.1
+# Убрал всё лишнее: redis, celery, psycopg2-binary, audioop-lts
