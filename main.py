@@ -1,5 +1,9 @@
 import logging
+import os
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
+from aiohttp import web
+import threading
+
 from config import Config
 from handlers import *
 
@@ -8,12 +12,31 @@ logging.basicConfig(
     level=logging.INFO
 )
 
+# Простая функция для обработки веб-запросов (health check)
+async def handle(request):
+    return web.Response(text="I'm alive!")
+
+def run_web_server():
+    """Запускает простой веб-сервер на порту PORT."""
+    app = web.Application()
+    app.router.add_get('/', handle)
+    app.router.add_get('/health', handle)  # Render может проверять этот путь
+    
+    port = int(os.environ.get('PORT', 8080))  # Берем порт из переменной окружения
+    web.run_app(app, host='0.0.0.0', port=port)
+
 def main():
-    # Создаем Updater без webhook
+    # Запускаем веб-сервер в отдельном потоке
+    # Это нужно, чтобы он не блокировал работу бота
+    web_thread = threading.Thread(target=run_web_server, daemon=True)
+    web_thread.start()
+    logging.info(f"Web server started on port {os.environ.get('PORT', 8080)}")
+
+    # Создаем Updater для бота (режим polling)
     updater = Updater(token=Config.BOT_TOKEN, use_context=True)
     dp = updater.dispatcher
 
-    # Добавляем обработчики
+    # Добавляем все обработчики команд
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CallbackQueryHandler(level_callback, pattern="^level_"))
     dp.add_handler(CallbackQueryHandler(learn_today, pattern="^learn_today$"))
@@ -27,8 +50,7 @@ def main():
     dp.add_handler(CallbackQueryHandler(word_callback, pattern="^(know_|dont_know_|example_|skip_|audio_|audiotest_)"))
     dp.add_handler(CallbackQueryHandler(test_answer, pattern="^test_answer_"))
 
-    # Запускаем polling (простой режим)
-    print("Бот запускается в режиме polling...")
+    logging.info("Bot starting in polling mode...")
     updater.start_polling()
     updater.idle()
 
