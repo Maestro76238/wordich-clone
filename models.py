@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, ForeignKey, JSON, Index
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, ForeignKey, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -9,7 +9,7 @@ class User(Base):
     __tablename__ = 'users'
     
     id = Column(Integer, primary_key=True)
-    telegram_id = Column(Integer, unique=True, nullable=False, index=True)
+    telegram_id = Column(Integer, unique=True, nullable=False)
     username = Column(String)
     first_name = Column(String)
     last_name = Column(String)
@@ -29,10 +29,6 @@ class User(Base):
 
 class Word(Base):
     __tablename__ = 'words'
-    __table_args__ = (
-        Index('idx_word_level', 'level'),
-        Index('idx_word_word', 'word'),
-    )
     
     id = Column(Integer, primary_key=True)
     word = Column(String, nullable=False)
@@ -40,7 +36,7 @@ class Word(Base):
     transcription = Column(String)
     example = Column(String)
     example_translation = Column(String)
-    level = Column(String, index=True)
+    level = Column(String)
     part_of_speech = Column(String)
     topic = Column(String)
     frequency = Column(Integer, default=100)
@@ -50,16 +46,12 @@ class Word(Base):
 
 class UserWordProgress(Base):
     __tablename__ = 'user_word_progress'
-    __table_args__ = (
-        Index('idx_user_next_review', 'user_id', 'next_review'),
-        Index('idx_user_stage', 'user_id', 'stage'),
-    )
     
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'))
     word_id = Column(Integer, ForeignKey('words.id', ondelete='CASCADE'))
     stage = Column(Integer, default=0)
-    next_review = Column(DateTime, default=datetime.utcnow, index=True)
+    next_review = Column(DateTime, default=datetime.utcnow)
     correct_count = Column(Integer, default=0)
     wrong_count = Column(Integer, default=0)
     review_count = Column(Integer, default=0)

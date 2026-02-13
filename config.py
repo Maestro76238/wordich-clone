@@ -5,8 +5,6 @@ load_dotenv()
 
 class Config:
     BOT_TOKEN = os.getenv('BOT_TOKEN')
-    DATABASE_URL = os.getenv('DATABASE_URL')
-    REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
     WEBHOOK_URL = os.getenv('WEBHOOK_URL')
     PORT = int(os.getenv('PORT', 8080))
     

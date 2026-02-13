@@ -65,10 +65,7 @@ async def level_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.edit_message_text(
         f"✅ Уровень {level} выбран!\n\n"
-        f"Теперь ты готов начать обучение. Каждый день я буду присылать "
-        f"тебе {Config.DEFAULT_WORDS_PER_DAY} новых слов и напоминать о повторении.\n\n"
-        f"🔊 У тебя {'включены' if db_user.audio_enabled else 'выключены'} голосовые сообщения. "
-        f"Их можно настроить в меню.",
+        f"Теперь ты готов начать обучение.",
         reply_markup=Keyboards.main_menu()
     )
 
@@ -148,7 +145,6 @@ async def word_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("Ошибка: слово не найдено")
         return
     
-    # АУДИО: Озвучить слово
     if action == 'audio':
         await query.edit_message_text("🔊 Генерирую аудио...")
         
@@ -170,7 +166,6 @@ async def word_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         return
     
-    # АУДИО-ТЕСТ
     elif action == 'audiotest':
         await query.edit_message_text("🎧 Генерирую аудио-тест...")
         
@@ -210,7 +205,6 @@ async def word_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         return
     
-    # ПРИМЕР С АУДИО
     elif action == 'example':
         if word and word.example:
             text = f"📝 *Пример со словом {word.word}:*\n\n"
@@ -236,7 +230,6 @@ async def word_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await send_word(query, user_id, context)
         return
     
-    # ОБЫЧНЫЕ ОТВЕТЫ
     elif action == 'know':
         correct = True
         session['correct'] += 1

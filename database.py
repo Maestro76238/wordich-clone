@@ -1,23 +1,16 @@
-# В начало database.py добавь:
-import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-
+import os
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import NullPool
 from datetime import datetime, timedelta
 from models import Base, User, Word, UserWordProgress, UserStats
 from config import Config
 
 class Database:
     def __init__(self):
-        database_url = Config.DATABASE_URL
-        if database_url and database_url.startswith('postgres://'):
-            database_url = database_url.replace('postgres://', 'postgresql://', 1)
-        
+        # SQLite база данных в файле
+        db_path = os.path.join(os.path.dirname(__file__), 'wordich.db')
         self.engine = create_engine(
-            database_url or 'sqlite:///wordich.db',
-            poolclass=NullPool if database_url else None,
+            f'sqlite:///{db_path}?check_same_thread=False',
             echo=False
         )
         Base.metadata.create_all(self.engine)

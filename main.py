@@ -8,6 +8,7 @@ from telegram.ext import (
     PicklePersistence
 )
 from aiohttp import web
+from telegram import Update
 
 from config import Config
 from handlers import *

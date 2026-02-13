@@ -4,21 +4,10 @@ import logging
 from datetime import datetime
 import hashlib
 import random
-import subprocess
 import tempfile
+import subprocess
 
 logger = logging.getLogger(__name__)
-
-# Попытка импортировать audioop, если нет - используем заглушку
-try:
-    import audioop
-except ImportError:
-    try:
-        import audioop_lts as audioop
-        logger.info("Using audioop-lts as fallback")
-    except ImportError:
-        logger.warning("audioop not available, using subprocess fallback")
-        audioop = None
 
 class VoiceManager:
     def __init__(self):
@@ -31,14 +20,13 @@ class VoiceManager:
         self.ffmpeg_available = self._check_ffmpeg()
     
     def _check_ffmpeg(self):
-        """Проверка наличия ffmpeg"""
         try:
             subprocess.run(['ffmpeg', '-version'], 
                          capture_output=True, 
                          check=True)
             return True
         except:
-            logger.warning("ffmpeg not found, voice features may be limited")
+            logger.warning("ffmpeg not found, using MP3 format")
             return False
     
     def _ensure_cache_dir(self):
@@ -50,19 +38,19 @@ class VoiceManager:
         return hashlib.md5(key_string.encode()).hexdigest()
     
     def _get_cache_path(self, cache_key):
-        return os.path.join(self.cache_dir, f"{cache_key}.ogg")
+        return os.path.join(self.cache_dir, f"{cache_key}")
     
     async def text_to_speech(self, text, lang='en', slow=False):
-        """Конвертация текста в голос с использованием gTTS"""
         try:
             cache_key = self._get_cache_key(text, lang)
-            cache_path = self._get_cache_path(cache_key)
             
-            if os.path.exists(cache_path):
-                logger.info(f"Voice cache hit: {cache_key}")
-                return cache_path
+            # Проверяем кэш
+            for ext in ['.ogg', '.mp3']:
+                cache_path = os.path.join(self.cache_dir, f"{cache_key}{ext}")
+                if os.path.exists(cache_path):
+                    logger.info(f"Voice cache hit: {cache_key}")
+                    return cache_path
             
-            # Используем gTTS напрямую
             from gtts import gTTS
             
             # Создаем временный MP3 файл
@@ -73,25 +61,24 @@ class VoiceManager:
             tts = gTTS(text=text, lang=lang, slow=slow)
             tts.save(tmp_mp3)
             
-            # Конвертируем в OGG через ffmpeg
+            # Пытаемся конвертировать в OGG, если есть ffmpeg
             if self.ffmpeg_available:
                 try:
-                    cmd = ['ffmpeg', '-i', tmp_mp3, '-c:a', 'libopus', '-b:a', '24k', '-y', cache_path]
+                    ogg_path = os.path.join(self.cache_dir, f"{cache_key}.ogg")
+                    cmd = ['ffmpeg', '-i', tmp_mp3, '-c:a', 'libopus', '-b:a', '24k', '-y', ogg_path]
                     subprocess.run(cmd, capture_output=True, check=True)
-                    
-                    # Удаляем временный файл
                     os.unlink(tmp_mp3)
                     
-                    if os.path.exists(cache_path):
-                        self.memory_cache[cache_key] = cache_path
-                        logger.info(f"Voice generated: {cache_key}")
-                        return cache_path
+                    if os.path.exists(ogg_path):
+                        self.memory_cache[cache_key] = ogg_path
+                        logger.info(f"Voice generated as OGG: {cache_key}")
+                        return ogg_path
                 except:
-                    logger.error("FFmpeg conversion failed")
+                    logger.warning("FFmpeg conversion failed, using MP3")
             
-            # Если ffmpeg недоступен, возвращаем MP3 (Telegram тоже принимает MP3)
-            os.rename(tmp_mp3, cache_path.replace('.ogg', '.mp3'))
-            mp3_path = cache_path.replace('.ogg', '.mp3')
+            # Если нет ffmpeg или конвертация не удалась, используем MP3
+            mp3_path = os.path.join(self.cache_dir, f"{cache_key}.mp3")
+            os.rename(tmp_mp3, mp3_path)
             
             self.memory_cache[cache_key] = mp3_path
             logger.info(f"Voice generated as MP3: {cache_key}")
@@ -102,7 +89,6 @@ class VoiceManager:
             return None
     
     async def cleanup_old_cache(self, max_age_hours=24):
-        """Очистка старого кэша"""
         try:
             now = datetime.now()
             deleted = 0
