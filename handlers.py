@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
+from telegram.ext import CallbackContext
 import random
 import asyncio
 import os
@@ -18,7 +18,8 @@ quiz_gen = QuizGenerator()
 
 user_sessions = {}
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ✅ ИСПРАВЛЕНО: убираем ContextTypes.DEFAULT_TYPE
+async def start(update: Update, context: CallbackContext):
     user = update.effective_user
     
     db_user = db.get_or_create_user(
@@ -41,15 +42,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 Выбери свой уровень для начала:"""
     
-    await update.message.reply_text(
+    update.message.reply_text(
         welcome,
         reply_markup=Keyboards.level_selection(),
         parse_mode='Markdown'
     )
 
-async def level_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def level_callback(update: Update, context: CallbackContext):
     query = update.callback_query
-    await query.answer()
+    query.answer()
     
     level = query.data.replace("level_", "")
     user_id = update.effective_user.id
@@ -63,15 +64,15 @@ async def level_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         session.close()
     
-    await query.edit_message_text(
+    query.edit_message_text(
         f"✅ Уровень {level} выбран!\n\n"
         f"Теперь ты готов начать обучение.",
         reply_markup=Keyboards.main_menu()
     )
 
-async def learn_today(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def learn_today(update: Update, context: CallbackContext):
     query = update.callback_query
-    await query.answer()
+    query.answer()
     
     user_id = update.effective_user.id
     db_user = db.get_or_create_user(user_id)
@@ -79,7 +80,7 @@ async def learn_today(update: Update, context: ContextTypes.DEFAULT_TYPE):
     words = db.get_daily_words(db_user.id)
     
     if not words:
-        await query.edit_message_text(
+        query.edit_message_text(
             "🎉 Поздравляю! Ты выучил все доступные слова!\n"
             "Скоро я добавлю новые уровни.",
             reply_markup=Keyboards.main_menu()
@@ -118,15 +119,15 @@ async def send_word(query, user_id, context):
         text += f"  [{word.transcription}]"
     text += f"\n\n_{word.translation}_"
     
-    await query.edit_message_text(
+    query.edit_message_text(
         text,
         reply_markup=Keyboards.learning_options(word.id, db_user.audio_enabled),
         parse_mode='Markdown'
     )
 
-async def word_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def word_callback(update: Update, context: CallbackContext):
     query = update.callback_query
-    await query.answer()
+    query.answer()
     
     data = query.data.split('_')
     action = data[0]
@@ -134,7 +135,7 @@ async def word_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
     if user_id not in user_sessions:
-        await query.edit_message_text("Сессия истекла. Начни заново.")
+        query.edit_message_text("Сессия истекла. Начни заново.")
         return
     
     session = user_sessions[user_id]
@@ -142,32 +143,32 @@ async def word_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     word = next((w for w in session['words'] if w.id == word_id), None)
     if not word:
-        await query.edit_message_text("Ошибка: слово не найдено")
+        query.edit_message_text("Ошибка: слово не найдено")
         return
     
     if action == 'audio':
-        await query.edit_message_text("🔊 Генерирую аудио...")
+        query.edit_message_text("🔊 Генерирую аудио...")
         
         audio_path = await voice_manager.text_to_speech(word.word)
         
         if audio_path and os.path.exists(audio_path):
             with open(audio_path, 'rb') as audio_file:
-                await context.bot.send_voice(
+                context.bot.send_voice(
                     chat_id=user_id,
                     voice=audio_file,
                     caption=f"Слово: {word.word}",
                     reply_markup=Keyboards.learning_options(word_id, db_user.audio_enabled)
                 )
-            await query.delete_message()
+            query.delete_message()
         else:
-            await query.edit_message_text(
+            query.edit_message_text(
                 "❌ Не удалось озвучить слово",
                 reply_markup=Keyboards.learning_options(word_id, db_user.audio_enabled)
             )
         return
     
     elif action == 'audiotest':
-        await query.edit_message_text("🎧 Генерирую аудио-тест...")
+        query.edit_message_text("🎧 Генерирую аудио-тест...")
         
         audio_path = await voice_manager.text_to_speech(word.word)
         
@@ -191,15 +192,15 @@ async def word_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if audio_path and os.path.exists(audio_path):
             with open(audio_path, 'rb') as audio_file:
-                await context.bot.send_voice(
+                context.bot.send_voice(
                     chat_id=user_id,
                     voice=audio_file,
                     caption="🎧 Какое это слово?",
                     reply_markup=InlineKeyboardMarkup(keyboard)
                 )
-            await query.delete_message()
+            query.delete_message()
         else:
-            await query.edit_message_text(
+            query.edit_message_text(
                 "❌ Не удалось создать аудио-тест",
                 reply_markup=Keyboards.learning_options(word_id, db_user.audio_enabled)
             )
@@ -210,7 +211,7 @@ async def word_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text = f"📝 *Пример со словом {word.word}:*\n\n"
             text += f"{word.example}\n\n_{word.example_translation}_"
             
-            await query.edit_message_text(
+            query.edit_message_text(
                 text,
                 parse_mode='Markdown'
             )
@@ -218,15 +219,16 @@ async def word_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if db_user.audio_enabled:
                 audio_path = await voice_manager.text_to_speech(word.example)
                 if audio_path and os.path.exists(audio_path):
-                    await asyncio.sleep(1)
+                    import time
+                    time.sleep(1)
                     with open(audio_path, 'rb') as audio_file:
-                        await context.bot.send_voice(
+                        context.bot.send_voice(
                             chat_id=user_id,
                             voice=audio_file,
                             caption="🔊 Пример произношения"
                         )
             
-            await asyncio.sleep(2)
+            time.sleep(2)
             await send_word(query, user_id, context)
         return
     
@@ -250,20 +252,21 @@ async def word_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     session['current_index'] += 1
     
-    await query.edit_message_text(feedback, parse_mode='Markdown')
+    query.edit_message_text(feedback, parse_mode='Markdown')
     
-    await asyncio.sleep(1.5)
+    import time
+    time.sleep(1.5)
     await send_word(query, user_id, context)
 
-async def test_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def test_answer(update: Update, context: CallbackContext):
     query = update.callback_query
-    await query.answer()
+    query.answer()
     
     answer_index = int(query.data.replace("test_answer_", ""))
     test_data = context.user_data.get('current_test', {})
     
     if not test_data:
-        await query.edit_message_text("Тест устарел. Начни заново.")
+        query.edit_message_text("Тест устарел. Начни заново.")
         return
     
     selected = test_data['options'][answer_index]
@@ -282,16 +285,17 @@ async def test_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         feedback = f"❌ Неправильно. Правильный ответ: {correct}"
     
-    await query.edit_message_text(feedback)
+    query.edit_message_text(feedback)
     
-    await asyncio.sleep(2)
+    import time
+    time.sleep(2)
     
     if user_id in user_sessions:
         class FakeQuery:
             def __init__(self, uid):
                 self.user_id = uid
-            async def edit_message_text(self, text, reply_markup=None, parse_mode=None):
-                await context.bot.send_message(
+            def edit_message_text(self, text, reply_markup=None, parse_mode=None):
+                context.bot.send_message(
                     chat_id=self.user_id,
                     text=text,
                     reply_markup=reply_markup,
@@ -328,22 +332,22 @@ async def finish_lesson(query, user_id):
     
     del user_sessions[user_id]
     
-    await query.edit_message_text(
+    query.edit_message_text(
         text,
         reply_markup=Keyboards.after_lesson(),
         parse_mode='Markdown'
     )
 
-async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def stats(update: Update, context: CallbackContext):
     query = update.callback_query
-    await query.answer()
+    query.answer()
     
     user_id = update.effective_user.id
     db_user = db.get_or_create_user(user_id)
     
     stats_data = db.get_user_stats(db_user.id)
     if not stats_data:
-        await query.edit_message_text("Статистика пока недоступна")
+        query.edit_message_text("Статистика пока недоступна")
         return
     
     text = f"""
@@ -364,29 +368,29 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
             bar = '█' * int(progress['percent'] // 10) + '░' * (10 - int(progress['percent'] // 10))
             text += f"{level}: {bar} {progress['learned']}/{progress['total']} ({progress['percent']:.0f}%)\n"
     
-    await query.edit_message_text(
+    query.edit_message_text(
         text,
         reply_markup=Keyboards.main_menu(),
         parse_mode='Markdown'
     )
 
-async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def settings(update: Update, context: CallbackContext):
     query = update.callback_query
-    await query.answer()
+    query.answer()
     
     user_id = update.effective_user.id
     db_user = db.get_or_create_user(user_id)
     
-    await query.edit_message_text(
+    query.edit_message_text(
         "⚙️ *Настройки*\n\n"
         "Здесь ты можешь изменить параметры обучения:",
         reply_markup=Keyboards.settings_menu(db_user),
         parse_mode='Markdown'
     )
 
-async def toggle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def toggle_audio(update: Update, context: CallbackContext):
     query = update.callback_query
-    await query.answer()
+    query.answer()
     
     user_id = update.effective_user.id
     
@@ -397,16 +401,16 @@ async def toggle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user.audio_enabled = not user.audio_enabled
             session.commit()
             status = "включены" if user.audio_enabled else "выключены"
-            await query.edit_message_text(
+            query.edit_message_text(
                 f"🔊 Голосовые сообщения {status}",
                 reply_markup=Keyboards.settings_menu(user)
             )
     finally:
         session.close()
 
-async def change_daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def change_daily(update: Update, context: CallbackContext):
     query = update.callback_query
-    await query.answer()
+    query.answer()
     
     keyboard = []
     for count in [5, 10, 15, 20, 30]:
@@ -416,14 +420,14 @@ async def change_daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )])
     keyboard.append([InlineKeyboardButton("◀️ Назад", callback_data="settings")])
     
-    await query.edit_message_text(
+    query.edit_message_text(
         "Выбери количество новых слов в день:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-async def set_daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def set_daily(update: Update, context: CallbackContext):
     query = update.callback_query
-    await query.answer()
+    query.answer()
     
     count = int(query.data.replace("set_daily_", ""))
     user_id = update.effective_user.id
@@ -437,14 +441,14 @@ async def set_daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         session.close()
     
-    await query.edit_message_text(
+    query.edit_message_text(
         f"✅ Установлено {count} слов в день",
         reply_markup=Keyboards.settings_menu(user)
     )
 
-async def achievements(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def achievements(update: Update, context: CallbackContext):
     query = update.callback_query
-    await query.answer()
+    query.answer()
     
     user_id = update.effective_user.id
     db_user = db.get_or_create_user(user_id)
@@ -467,17 +471,17 @@ async def achievements(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             text += f"🔒 {name} - {desc}\n"
     
-    await query.edit_message_text(
+    query.edit_message_text(
         text,
         reply_markup=Keyboards.main_menu(),
         parse_mode='Markdown'
     )
 
-async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def main_menu(update: Update, context: CallbackContext):
     query = update.callback_query
-    await query.answer()
+    query.answer()
     
-    await query.edit_message_text(
+    query.edit_message_text(
         "🏠 *Главное меню*\n\n"
         "Выбери, что хочешь сделать:",
         reply_markup=Keyboards.main_menu(),
