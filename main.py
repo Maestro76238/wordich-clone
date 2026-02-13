@@ -1,9 +1,9 @@
 import logging
 import os
+import asyncio
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
 from aiohttp import web
-import threading
-
+from threading import Thread
 from config import Config
 from handlers import *
 
@@ -12,28 +12,38 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# Простая функция для обработки веб-запросов (health check)
+# Простой веб-сервер для Render
 async def handle(request):
-    return web.Response(text="I'm alive!")
+    return web.Response(text="Bot is running!")
 
-def run_web_server():
-    """Запускает простой веб-сервер на порту PORT."""
+async def run_web_server():
     app = web.Application()
     app.router.add_get('/', handle)
-    app.router.add_get('/health', handle)  # Render может проверять этот путь
+    app.router.add_get('/health', handle)
     
     port = int(os.environ.get('PORT', 8080))
-    web.run_app(app, host='0.0.0.0', port=port)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    logging.info(f"Web server started on port {port}")
+    
+    # Держим сервер запущенным
+    await asyncio.Event().wait()
+
+def start_web_server():
+    """Запуск веб-сервера в отдельном потоке"""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(run_web_server())
 
 def main():
     # Запускаем веб-сервер в отдельном потоке
-    web_thread = threading.Thread(target=run_web_server, daemon=True)
+    web_thread = Thread(target=start_web_server, daemon=True)
     web_thread.start()
-    logging.info(f"Web server started on port {os.environ.get('PORT', 8080)}")
-
-    # ✅ ИСПРАВЛЕНО: Правильный способ создания Updater
-    # Вместо token= используем первую позицию или аргумент 'token' без use_context
-    updater = Updater(Config.BOT_TOKEN, use_context=True)
+    
+    # ✅ УБИРАЕМ use_context - он больше не нужен
+    updater = Updater(Config.BOT_TOKEN)
     dp = updater.dispatcher
 
     # Добавляем все обработчики команд
